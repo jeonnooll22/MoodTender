@@ -1,0 +1,62 @@
+# ─── Python ───────────────────────────────────────────────────
+venv/
+**/venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.ipynb_checkpoints
+
+# ─── 모델 가중치 (용량 큼) ────────────────────────────────────
+# LivePortrait
+LivePortrait/pretrained_weights/liveportrait/
+LivePortrait/pretrained_weights/liveportrait_animals/
+LivePortrait/pretrained_weights/insightface/
+LivePortrait/pretrained_weights/.cache/
+**/*.pth
+**/*.onnx
+**/*.pkl
+
+# MuseTalk
+MuseTalk/models/
+MuseTalk/config.py
+
+# ─── 대용량 소스 파일 ─────────────────────────────────────────
+LivePortrait/source/
+
+# ─── 생성 결과물 ──────────────────────────────────────────────
+LivePortrait/animations/
+LivePortrait/tmp/
+LivePortrait/gradio_temp/
+MuseTalk/results/
+
+# ─── 미디어 파일 (영상/오디오) ────────────────────────────────
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.wav
+*.mp3
+*.aac
+*.flac
+
+# ─── Gradio / 임시 캐시 ───────────────────────────────────────
+.gradio/
+**/.gradio/
+*.log
+
+# ─── IDE / OS ──────────────────────────────────────────────────
+.DS_Store
+**/.DS_Store
+.idea/
+.vscode/
+ffmpeg*
+ffprobe*
+ffplay*
+
+# ─── 기타 ─────────────────────────────────────────────────────
+*.egg-info/
+dist/
+build/
