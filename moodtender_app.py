@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import json
 import traceback
+import threading
 import cv2
 from argparse import Namespace
 
@@ -59,7 +60,7 @@ if not ANTHROPIC_API_KEY:
     print("       실행 전: $env:ANTHROPIC_API_KEY='your-key'")
 
 # ─────────────────────────────────────────────
-# MuseTalk 모델 로드
+# MuseTalk 모델 (백그라운드 로드)
 # ─────────────────────────────────────────────
 args = Namespace(
     version="v15",
@@ -87,57 +88,64 @@ from transformers import WhisperModel
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(f"[MoodTender] 디바이스: {device}")
 
-print("[MoodTender] 모델 로딩 중...")
-vae, unet, pe = load_all_model(
-    unet_model_path="./models/musetalkV15/unet.pth",
-    vae_type="sd-vae",
-    unet_config="./models/musetalkV15/musetalk.json",
-    device=device,
-)
-timesteps = torch.tensor([0], device=device)
-pe = pe.half().to(device)
-vae.vae = vae.vae.half().to(device)
-unet.model = unet.model.half().to(device)
-weight_dtype = unet.model.dtype
+vae = unet = pe = timesteps = whisper = audio_processor = weight_dtype = fp = None
+avatar_short = avatar_long = None
+_models_ready = False
+_loading_status = "모델 미로드 — 위 버튼을 눌러 로드하세요."
+_loading_error = None
+_loading_in_progress = False
 
-audio_processor = AudioProcessor(feature_extractor_path="./models/whisper")
-whisper = WhisperModel.from_pretrained("./models/whisper")
-whisper = whisper.to(device=device, dtype=weight_dtype).eval()
-whisper.requires_grad_(False)
+def _load_models():
+    global vae, unet, pe, timesteps, whisper, audio_processor, weight_dtype, fp
+    global avatar_short, avatar_long, _models_ready, _loading_status, _loading_error, _loading_in_progress
+    try:
+        _loading_status = "MuseTalk 모델 로딩 중..."
+        print("[MoodTender] 모델 로딩 중...")
+        vae, unet, pe = load_all_model(
+            unet_model_path="./models/musetalkV15/unet.pth",
+            vae_type="sd-vae",
+            unet_config="./models/musetalkV15/musetalk.json",
+            device=device,
+        )
+        timesteps = torch.tensor([0], device=device)
+        pe = pe.half().to(device)
+        vae.vae = vae.vae.half().to(device)
+        unet.model = unet.model.half().to(device)
+        weight_dtype = unet.model.dtype
 
-fp = FaceParsing(left_cheek_width=40, right_cheek_width=40)
+        audio_processor = AudioProcessor(feature_extractor_path="./models/whisper")
+        whisper = WhisperModel.from_pretrained("./models/whisper")
+        whisper = whisper.to(device=device, dtype=weight_dtype).eval()
+        whisper.requires_grad_(False)
 
-rt.vae = vae
-rt.unet = unet
-rt.pe = pe
-rt.timesteps = timesteps
-rt.whisper = whisper
-rt.audio_processor = audio_processor
-rt.weight_dtype = weight_dtype
-rt.device = device
-rt.fp = fp
+        fp = FaceParsing(left_cheek_width=40, right_cheek_width=40)
 
-print("[MoodTender] 아바타 준비 중...")
-avatar_short = Avatar(
-    avatar_id="bartender",
-    video_path="data/video/bartender.mp4",
-    bbox_shift=0,
-    batch_size=args.batch_size,
-    preparation=True,
-)
-avatar_long = Avatar(
-    avatar_id="bartender_long",
-    video_path="data/video/Bartender_long.mp4",
-    bbox_shift=0,
-    batch_size=args.batch_size,
-    preparation=True,
-)
-print("[MoodTender] 아바타 준비 완료!")
+        rt.vae = vae; rt.unet = unet; rt.pe = pe; rt.timesteps = timesteps
+        rt.whisper = whisper; rt.audio_processor = audio_processor
+        rt.weight_dtype = weight_dtype; rt.device = device; rt.fp = fp
 
-AVATARS = {
-    "bartender (4초)": avatar_short,
-    "bartender_long (10초)": avatar_long,
-}
+        _loading_status = "아바타 준비 중..."
+        print("[MoodTender] 아바타 준비 중...")
+        avatar_short = Avatar(
+            avatar_id="bartender",
+            video_path="data/video/bartender.mp4",
+            bbox_shift=0, batch_size=args.batch_size, preparation=True,
+        )
+        avatar_long = Avatar(
+            avatar_id="bartender_long",
+            video_path="data/video/Bartender_long.mp4",
+            bbox_shift=0, batch_size=args.batch_size, preparation=True,
+        )
+        try_load_custom_avatar_from_cache()
+        _models_ready = True
+        _loading_status = "준비 완료"
+        print("[MoodTender] 준비 완료!")
+    except Exception as e:
+        _loading_error = str(e)
+        _loading_status = f"로딩 실패: {e}"
+        print(f"[MoodTender] 로딩 실패: {e}")
+    finally:
+        _loading_in_progress = False
 
 # ─────────────────────────────────────────────
 # 바텐더 시스템 프롬프트
@@ -289,8 +297,6 @@ def try_load_custom_avatar_from_cache():
     except Exception as e:
         print(f"[MoodTender] 커스텀 아바타 캐시 로드 실패 (무시): {e}")
 
-try_load_custom_avatar_from_cache()
-
 def initialize_avatar(
     source_image,
     driving_style: str,
@@ -420,6 +426,11 @@ CSS = """
 
 with gr.Blocks(title="MoodTender", css=CSS) as demo:
     gr.Markdown("# MoodTender\n### 사일의 감정 바텐더")
+    with gr.Row():
+        load_model_btn = gr.Button("모델 로드", variant="primary", scale=1)
+        model_status_bar = gr.Textbox(
+            value=_loading_status, interactive=False, label="시스템 상태", scale=4,
+        )
 
     with gr.Row():
         with gr.Column(scale=2):
@@ -451,7 +462,7 @@ with gr.Blocks(title="MoodTender", css=CSS) as demo:
                 minimum=-10, maximum=10, value=0, step=1,
                 label="입 위치 조정 bbox_shift (음수=위↑, 양수=아래↓) — 변경 시 아바타 재생성 필요",
             )
-            init_btn = gr.Button("아바타 생성", variant="secondary")
+            init_btn = gr.Button("아바타 생성", variant="secondary", interactive=False)
             init_status = gr.Textbox(
                 label="아바타 상태", value="기본 바텐더 사용 중", interactive=False,
             )
@@ -470,11 +481,34 @@ with gr.Blocks(title="MoodTender", css=CSS) as demo:
             voice_dropdown = gr.Dropdown(
                 choices=list(VOICES.keys()), value="한국어 여성 (SunHi)", label="목소리",
             )
-            generate_btn = gr.Button("생성", variant="primary", size="lg")
+            generate_btn = gr.Button("생성", variant="primary", size="lg", interactive=False)
             gen_status = gr.Textbox(label="상태", interactive=False)
 
         with gr.Column(scale=3):
             video_output = gr.Video(label="바텐더 응답", autoplay=True, height=560)
+
+    # 모델 로드 버튼
+    def on_load_model():
+        global _loading_in_progress
+        if _models_ready:
+            return gr.update(value="준비 완료", interactive=False)
+        if _loading_in_progress:
+            return gr.update(value="로딩 중...", interactive=False)
+        _loading_in_progress = True
+        threading.Thread(target=_load_models, daemon=True).start()
+        return gr.update(value="로딩 중...", interactive=False)
+
+    load_model_btn.click(fn=on_load_model, outputs=load_model_btn)
+
+    # 모델 로딩 상태 폴링
+    def poll_model_status():
+        if _models_ready:
+            return gr.update(value="준비 완료"), gr.update(visible=False), gr.update(interactive=True), gr.update(interactive=True)
+        if _loading_error:
+            return gr.update(value=f"로딩 실패: {_loading_error}"), gr.update(value="재시도", interactive=True), gr.update(interactive=False), gr.update(interactive=False)
+        return gr.update(value=_loading_status), gr.update(interactive=not _loading_in_progress), gr.update(interactive=False), gr.update(interactive=False)
+
+    gr.Timer(2).tick(fn=poll_model_status, outputs=[model_status_bar, load_model_btn, init_btn, generate_btn])
 
     # 파일 선택 확인
     def on_file_upload(f):
@@ -499,6 +533,9 @@ with gr.Blocks(title="MoodTender", css=CSS) as demo:
 
     # 영상 생성
     def on_generate(text, voice):
+        if not _models_ready:
+            yield "모델 로딩 중입니다. 잠시 후 다시 시도하세요.", None
+            return
         av = custom_avatar if custom_avatar is not None else avatar_long
         print(f"[생성] {'커스텀' if custom_avatar is not None else '기본'} 아바타 사용")
         yield from run_inference(text, voice, av)
