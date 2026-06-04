@@ -13,9 +13,13 @@
       <h1>MoodTender</h1>
       <span class="subtitle">감정 바텐더</span>
     </div>
-    <div class="model-bar">
-      <span id="model-status-text">모델 미로드</span>
-      <button id="load-model-btn" onclick="loadModel()">모델 로드</button>
+    <div class="header-right">
+      <span id="username-badge" class="username-badge"></span>
+      <div class="model-bar">
+        <span id="model-status-text">모델 미로드</span>
+        <button id="load-model-btn" onclick="loadModel()">모델 로드</button>
+      </div>
+      <button id="logout-btn" onclick="logout()">로그아웃</button>
     </div>
   </header>
 
@@ -82,7 +86,7 @@
 
     <section class="output">
       <div class="video-wrap">
-        <video id="video-output" controls autoplay hidden></video>
+        <video id="video-output" controls autoplay></video>
         <div id="video-placeholder">영상이 여기에 표시됩니다</div>
       </div>
     </section>

@@ -1,14 +1,16 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:      #f5f5f5;
-  --surface: #ffffff;
-  --border:  #e0e0e0;
-  --accent:  #6366f1;
-  --text:    #1a1a1a;
-  --muted:   #6b7280;
-  --danger:  #ef4444;
-  --success: #16a34a;
+  --bg:      #121212;
+  --surface: #1e1e1e;
+  --surface2: #2c2c2c;
+  --border:  #3a3a3a;
+  --accent:  #e0b0ff;
+  --accent2: #cda0eb;
+  --text:    #f0f0f0;
+  --muted:   #888;
+  --danger:  #ff6b6b;
+  --success: #4ade80;
 }
 
 body {
@@ -33,14 +35,21 @@ header {
 }
 
 .header-left { display: flex; align-items: baseline; gap: 10px; }
-h1 { font-size: 1.4rem; font-weight: 700; color: var(--text); }
+h1 { font-size: 1.4rem; font-weight: 700; color: var(--accent); }
 .subtitle { font-size: 0.85rem; color: var(--muted); }
+
+.header-right { display: flex; align-items: center; gap: 16px; }
+
+.username-badge {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
 
 .model-bar {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: var(--bg);
+  background: var(--surface2);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 7px 14px;
@@ -74,7 +83,7 @@ main {
 
 /* ── Panel ──────────────────────────────────────── */
 .panel {
-  background: var(--surface);
+  background: var(--surface2);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 14px;
@@ -152,28 +161,30 @@ button {
   width: 100%;
   transition: opacity 0.15s;
 }
-button:disabled { opacity: 0.38; cursor: not-allowed; }
+button:disabled { opacity: 0.35; cursor: not-allowed; }
 button:not(:disabled):hover { opacity: 0.85; }
 
 #load-model-btn {
   background: var(--accent);
-  color: #fff;
+  color: #121212;
   width: auto;
   padding: 6px 16px;
   font-size: 0.82rem;
+  font-weight: 700;
 }
 
-.btn-secondary {
-  background: #f0f0f0;
-  color: var(--text);
+#logout-btn {
+  background: transparent;
+  color: var(--muted);
   border: 1px solid var(--border);
+  width: auto;
+  padding: 6px 14px;
+  font-size: 0.8rem;
 }
+#logout-btn:hover { color: var(--danger); border-color: var(--danger); opacity: 1; }
 
-.btn-primary {
-  background: var(--accent);
-  color: #fff;
-  padding: 11px;
-}
+.btn-secondary { background: #3a3a3a; color: var(--text); border: 1px solid var(--border); }
+.btn-primary   { background: var(--accent); color: #121212; font-weight: 700; padding: 11px; }
 
 #lp-preview {
   width: 100%;
@@ -190,16 +201,13 @@ button:not(:disabled):hover { opacity: 0.85; }
   padding: 28px;
 }
 
-.video-wrap {
-  width: 100%;
-  max-width: 560px;
-  position: relative;
-}
+.video-wrap { width: 100%; max-width: 560px; }
 
 #video-output {
   width: 100%;
   border-radius: 12px;
   display: none;
+  background: #000;
 }
 
 #video-placeholder {

@@ -1,3 +1,21 @@
+// ── 인증 체크 ────────────────────────────────────────────────
+(function checkAuth() {
+  if (!localStorage.getItem('access_token')) {
+    window.location.href = '/login';
+  }
+  const username = localStorage.getItem('username');
+  if (username) {
+    const badge = document.getElementById('username-badge');
+    if (badge) badge.textContent = username + ' 님';
+  }
+})();
+
+function logout() {
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('username');
+  window.location.href = '/login';
+}
+
 // ── 초기화 ───────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   await loadVoices();

@@ -18,3 +18,8 @@ imageio[ffmpeg]
 omegaconf
 ffmpeg-python
 moviepy
+
+# ─── 인증/DB ───────────────────────────────────────────────
+bcrypt==5.0.0
+python-jose[cryptography]==3.5.0
+sqlalchemy==2.0.50

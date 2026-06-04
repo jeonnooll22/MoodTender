@@ -7,9 +7,18 @@ from argparse import Namespace
 
 import cv2
 import torch
-from fastapi import FastAPI, Form, UploadFile, File
+from fastapi import FastAPI, Form, UploadFile, File, Depends, HTTPException
 from fastapi.responses import StreamingResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+
+from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, Session
+import bcrypt as _bcrypt_lib
+from jose import jwt
+from datetime import datetime, timedelta
+from pydantic import BaseModel
 
 # ─── 경로 설정 ────────────────────────────────────────────────
 _BACKEND_DIR  = Path(__file__).resolve().parent
@@ -31,6 +40,56 @@ except ImportError:
 os.environ["PATH"] = FFMPEG_PATH + ";" + os.environ.get("PATH", "")
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+
+# ─── 인증 설정 ────────────────────────────────────────────────
+SECRET_KEY = os.environ.get("SECRET_KEY", "change-me-in-production")
+ALGORITHM  = "HS256"
+if SECRET_KEY == "change-me-in-production":
+    print("[경고] SECRET_KEY 환경변수를 설정하세요.")
+
+_DB_PATH = _BACKEND_DIR / "bar_project.db"
+_engine  = create_engine(f"sqlite:///{_DB_PATH}", connect_args={"check_same_thread": False})
+_Session = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
+_Base    = declarative_base()
+
+class _User(_Base):
+    __tablename__ = "users"
+    id              = Column(Integer, primary_key=True, index=True)
+    username        = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+
+_Base.metadata.create_all(bind=_engine)
+
+class _UserCreate(BaseModel):
+    username: str
+    password: str
+
+class _UserResponse(BaseModel):
+    id: int
+    username: str
+    class Config:
+        from_attributes = True
+
+class _Token(BaseModel):
+    access_token: str
+    token_type: str
+
+def _hash_pw(pw: str) -> str:
+    return _bcrypt_lib.hashpw(pw.encode(), _bcrypt_lib.gensalt()).decode()
+
+def _verify_pw(plain: str, hashed: str) -> bool:
+    return _bcrypt_lib.checkpw(plain.encode(), hashed.encode())
+
+def _create_token(username: str) -> str:
+    expire = datetime.utcnow() + timedelta(minutes=60)
+    return jwt.encode({"sub": username, "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
+
+def _get_db():
+    db = _Session()
+    try:
+        yield db
+    finally:
+        db.close()
 
 LP_DRIVING_VIDEOS = {
     "기본":  os.path.join(LP_DIR, "assets", "examples", "driving", "d0.mp4"),
@@ -196,11 +255,45 @@ def sse(data: dict) -> str:
 
 # ─── FastAPI ──────────────────────────────────────────────────
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.mount("/static", StaticFiles(directory=str(_FRONTEND_DIR)), name="static")
 
 @app.get("/")
 async def index():
     return FileResponse(_FRONTEND_DIR / "index.html")
+
+@app.get("/login")
+async def login_page():
+    return FileResponse(_FRONTEND_DIR / "login.html")
+
+# ─── 인증 API ─────────────────────────────────────────────────
+@app.post("/api/signup")
+def signup(user: _UserCreate, db: Session = Depends(_get_db)):
+    if db.query(_User).filter(_User.username == user.username).first():
+        raise HTTPException(status_code=400, detail="이미 존재하는 아이디입니다.")
+    new_user = _User(username=user.username, hashed_password=_hash_pw(user.password))
+    db.add(new_user); db.commit(); db.refresh(new_user)
+    return {"id": new_user.id, "username": new_user.username}
+
+@app.post("/api/login")
+def login(user: _UserCreate, db: Session = Depends(_get_db)):
+    db_user = db.query(_User).filter(_User.username == user.username).first()
+    if not db_user or not _verify_pw(user.password, db_user.hashed_password):
+        raise HTTPException(status_code=401, detail="아이디 또는 비밀번호가 틀렸습니다.")
+    return {"access_token": _create_token(db_user.username), "token_type": "bearer"}
+
+@app.get("/api/check-username")
+def check_username(username: str, db: Session = Depends(_get_db)):
+    exists = db.query(_User).filter(_User.username == username).first()
+    if exists:
+        return {"is_available": False, "message": "이미 사용 중인 아이디입니다."}
+    return {"is_available": True, "message": "사용 가능한 아이디입니다."}
 
 # 상태 폴링
 @app.get("/api/status")

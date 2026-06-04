@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MoodTender - 로그인</title>
+  <link rel="stylesheet" href="/static/css/login.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>MoodTender</h1>
+    <p class="subtitle">심야의 감정 바텐더</p>
+
+    <!-- 로그인 뷰 -->
+    <div id="loginView">
+      <form id="loginForm">
+        <input type="text" id="loginUsername" placeholder="아이디" required />
+        <input type="password" id="loginPassword" placeholder="비밀번호" required />
+        <button type="submit" class="btn primary-btn">로그인</button>
+        <button type="button" id="showSignupBtn" class="btn secondary-btn">회원가입 하기</button>
+      </form>
+      <p id="loginMessage" class="message"></p>
+    </div>
+
+    <!-- 회원가입 뷰 -->
+    <div id="signupView" class="hidden">
+      <form id="signupForm">
+        <div class="input-group">
+          <input type="text" id="signupUsername" placeholder="사용할 아이디" required />
+          <button type="button" id="checkIdBtn" class="btn small-btn">중복확인</button>
+        </div>
+        <input type="password" id="signupPassword" placeholder="비밀번호" required />
+        <input type="password" id="signupPasswordConfirm" placeholder="비밀번호 확인" required />
+        <button type="submit" class="btn primary-btn">가입 완료</button>
+        <button type="button" id="showLoginBtn" class="btn text-btn">로그인으로 돌아가기</button>
+      </form>
+      <p id="signupMessage" class="message"></p>
+    </div>
+  </div>
+
+  <script src="/static/js/auth.js"></script>
+</body>
+</html>
