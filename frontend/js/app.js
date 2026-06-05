@@ -10,7 +10,17 @@
   }
 })();
 
-function logout() {
+// Redis 블랙리스트 연동 로그아웃
+async function logout() {
+  const token = localStorage.getItem('access_token');
+  if (token) {
+    try {
+      await fetch('/api/logout', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      });
+    } catch (e) { console.error("로그아웃 통신 에러:", e); }
+  }
   localStorage.removeItem('access_token');
   localStorage.removeItem('username');
   window.location.href = '/login';
@@ -18,6 +28,9 @@ function logout() {
 
 // ── 초기화 ───────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
+  const logoutBtn = document.getElementById('logout-btn');
+  if (logoutBtn) logoutBtn.addEventListener('click', logout);
+
   await loadVoices();
   pollStatus();
 });
@@ -57,8 +70,8 @@ function applyModelState({ ready, status, error, loading }) {
     genBtn.disabled  = false;
     initBtn.disabled = false;
   } else if (error) {
-    statusEl.className = 'error';
-    loadBtn.disabled   = false;
+    statusEl.className  = 'error';
+    loadBtn.disabled    = false;
     loadBtn.textContent = '재시도';
   } else if (loading) {
     statusEl.className  = '';
@@ -75,7 +88,6 @@ async function loadModel() {
 
   await fetch('/api/load_model', { method: 'POST' });
 
-  // SSE로 진행상황 수신
   const es = new EventSource('/api/load_model/stream');
   es.onmessage = ({ data }) => {
     const msg = JSON.parse(data);
@@ -88,35 +100,127 @@ async function loadModel() {
   es.onerror = () => es.close();
 }
 
-// ── 영상 생성 ────────────────────────────────────────────────
+// ── 영상 생성 (스트리밍 MSE) ─────────────────────────────────
 async function generate() {
-  const text  = document.getElementById('text-input').value.trim();
+  const text = document.getElementById('text-input').value.trim();
   if (!text) return;
 
-  const genBtn   = document.getElementById('generate-btn');
-  const statusEl = document.getElementById('gen-status');
-  const videoEl  = document.getElementById('video-output');
+  const genBtn      = document.getElementById('generate-btn');
+  const statusEl    = document.getElementById('gen-status');
+  const videoEl     = document.getElementById('video-output');
   const placeholder = document.getElementById('video-placeholder');
 
-  genBtn.disabled    = true;
-  statusEl.textContent = '요청 중...';
+  genBtn.disabled      = true;
+  statusEl.textContent = '생성 중...';
 
   const form = new FormData();
   form.append('text',  text);
   form.append('voice', document.getElementById('voice-select').value);
 
-  await readSSE('/api/generate', form, ({ status, error, done, video_path }) => {
-    if (status)  statusEl.textContent = status;
-    if (error)   statusEl.textContent = `오류: ${error}`;
-    if (video_path) {
-      videoEl.src = `/api/video?path=${encodeURIComponent(video_path)}`;
-      videoEl.style.display     = 'block';
-      placeholder.style.display = 'none';
-      videoEl.play();
-    }
-  });
+  const MIME   = 'video/mp4; codecs="avc1.42E01E, mp4a.40.2"';
+  const useMSE = 'MediaSource' in window && MediaSource.isTypeSupported(MIME);
+
+  if (useMSE) {
+    await _generateStream(form, MIME, videoEl, placeholder, statusEl);
+  } else {
+    await readSSE('/api/generate', form, ({ status, error, video_path }) => {
+      if (status)     statusEl.textContent = status;
+      if (error)      statusEl.textContent = `오류: ${error}`;
+      if (video_path) {
+        videoEl.src               = `/api/video?path=${encodeURIComponent(video_path)}`;
+        videoEl.style.display     = 'block';
+        placeholder.style.display = 'none';
+        videoEl.play();
+      }
+    });
+  }
 
   genBtn.disabled = false;
+}
+
+async function _generateStream(form, mime, videoEl, placeholder, statusEl) {
+  const mediaSource = new MediaSource();
+  const objectURL   = URL.createObjectURL(mediaSource);
+
+  videoEl.src               = objectURL;
+  videoEl.style.display     = 'block';
+  placeholder.style.display = 'none';
+
+  await new Promise(resolve =>
+    mediaSource.addEventListener('sourceopen', resolve, { once: true })
+  );
+
+  const sb          = mediaSource.addSourceBuffer(mime);
+  const appendQueue = [];
+  let   appending   = false;
+  let   streamDone  = false;
+
+  function flushQueue() {
+    if (appending || appendQueue.length === 0 || mediaSource.readyState !== 'open') return;
+    appending = true;
+    sb.appendBuffer(appendQueue.shift());
+  }
+
+  sb.addEventListener('updateend', () => {
+    appending = false;
+    if (streamDone && appendQueue.length === 0) {
+      try { mediaSource.endOfStream(); statusEl.textContent = '완료!'; } catch (_) {}
+    } else {
+      flushQueue();
+    }
+  });
+  sb.addEventListener('error', e => console.error('[MSE]', e));
+
+  // 버퍼 직접 모니터링
+  const INITIAL_WAIT     = 5000;
+  const PAUSE_THRESHOLD  = 0.3;
+  const RESUME_THRESHOLD = 1.5;
+  let monitorId  = null;
+  let started    = false;
+  let playAllowed = false;
+
+  function monitorBuffer() {
+    if (!started) return;
+    const buf = videoEl.buffered;
+    if (buf.length > 0) {
+      const ahead = buf.end(buf.length - 1) - videoEl.currentTime;
+      if (!videoEl.paused && ahead < PAUSE_THRESHOLD) {
+        videoEl.pause();
+        statusEl.textContent = '버퍼링 중...';
+      } else if (videoEl.paused && playAllowed && ahead >= RESUME_THRESHOLD) {
+        videoEl.play().catch(() => {});
+        statusEl.textContent = '재생 중...';
+      }
+    }
+    monitorId = setTimeout(monitorBuffer, 200);
+  }
+
+  const response = await fetch('/api/generate_stream', {
+    method:  'POST',
+    body:    form,
+    headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+  });
+  const reader = response.body.getReader();
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    appendQueue.push(value);
+    flushQueue();
+
+    if (!started) {
+      started = true;
+      statusEl.textContent = '버퍼링 중...';
+      monitorBuffer();
+      setTimeout(() => { playAllowed = true; }, INITIAL_WAIT);
+    }
+  }
+
+  streamDone = true;
+  if (!appending && appendQueue.length === 0 && mediaSource.readyState === 'open') {
+    try { mediaSource.endOfStream(); statusEl.textContent = '완료!'; } catch (_) {}
+  }
 }
 
 // ── 아바타 초기화 ────────────────────────────────────────────
@@ -149,9 +253,13 @@ async function initAvatar() {
   btn.disabled = false;
 }
 
-// ── SSE 유틸 (fetch stream) ──────────────────────────────────
+// ── SSE 유틸 ─────────────────────────────────────────────────
 async function readSSE(url, formData, onMessage) {
-  const res    = await fetch(url, { method: 'POST', body: formData });
+  const res    = await fetch(url, {
+    method: 'POST',
+    body:   formData,
+    headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+  });
   const reader = res.body.getReader();
   const dec    = new TextDecoder();
   let   buf    = '';

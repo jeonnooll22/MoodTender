@@ -1,9 +1,16 @@
-const API = "";  // same origin (port 7862)
+const API = "";
 
-const loginView   = document.getElementById("loginView");
-const signupView  = document.getElementById("signupView");
-const loginMsg    = document.getElementById("loginMessage");
-const signupMsg   = document.getElementById("signupMessage");
+// ── 이미 로그인된 경우 메인으로 리다이렉트 ──────────────────
+document.addEventListener("DOMContentLoaded", () => {
+  if (localStorage.getItem("access_token")) {
+    window.location.href = "/";
+  }
+});
+
+const loginView  = document.getElementById("loginView");
+const signupView = document.getElementById("signupView");
+const loginMsg   = document.getElementById("loginMessage");
+const signupMsg  = document.getElementById("signupMessage");
 
 let isIdChecked = false;
 
@@ -30,10 +37,7 @@ document.getElementById("signupUsername").addEventListener("input", () => {
 // ── 중복 확인 ────────────────────────────────────────────────
 document.getElementById("checkIdBtn").addEventListener("click", async () => {
   const username = document.getElementById("signupUsername").value.trim();
-  if (!username) {
-    setMsg(signupMsg, "아이디를 먼저 입력해주세요.", false);
-    return;
-  }
+  if (!username) { setMsg(signupMsg, "아이디를 먼저 입력해주세요.", false); return; }
   try {
     const data = await fetch(`${API}/api/check-username?username=${username}`).then(r => r.json());
     if (data.is_available) {
@@ -58,7 +62,7 @@ document.getElementById("signupForm").addEventListener("submit", async (e) => {
   if (password !== confirm) { setMsg(signupMsg, "비밀번호가 일치하지 않습니다.", false); return; }
 
   try {
-    const res = await fetch(`${API}/api/signup`, {
+    const res  = await fetch(`${API}/api/signup`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
@@ -83,7 +87,7 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
   const password = document.getElementById("loginPassword").value;
 
   try {
-    const res = await fetch(`${API}/api/login`, {
+    const res  = await fetch(`${API}/api/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
