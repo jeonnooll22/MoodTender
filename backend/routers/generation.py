@@ -142,6 +142,9 @@ async def init_avatar(
                 avatar_id="custom_avatar", video_path=lp_video,
                 bbox_shift=bbox_shift, batch_size=ml_manager.args.batch_size, preparation=True,
             )
+            ml_manager.custom_avatar.input_latent_list_cycle = [
+                t.to(ml_manager.device) for t in ml_manager.custom_avatar.input_latent_list_cycle
+            ]
             print(f"[시간] MuseTalk 아바타 준비: {time.time()-t0:.1f}초")
             push({"status": "커스텀 아바타 준비 완료!", "done": True})
         except Exception as e:

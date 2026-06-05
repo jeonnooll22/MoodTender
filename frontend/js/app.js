@@ -172,7 +172,7 @@ async function _generateStream(form, mime, videoEl, placeholder, statusEl) {
   sb.addEventListener('error', e => console.error('[MSE]', e));
 
   // 버퍼 직접 모니터링
-  const INITIAL_WAIT     = 5000;
+  const INITIAL_WAIT     = 0;
   const PAUSE_THRESHOLD  = 0.3;
   const RESUME_THRESHOLD = 1.5;
   let monitorId  = null;

@@ -4,7 +4,7 @@
 fMP4 청크를 yield해 HTTP 스트리밍에 사용.
 """
 
-import os, copy, queue, threading, subprocess
+import os, queue, threading, subprocess
 import numpy as np
 import cv2
 import torch
@@ -113,7 +113,7 @@ def inference_stream(
                 if raw is None or idx >= video_num:
                     break
                 bbox  = avatar.coord_list_cycle[idx % len(avatar.coord_list_cycle)]
-                ori   = copy.deepcopy(avatar.frame_list_cycle[idx % len(avatar.frame_list_cycle)])
+                ori   = avatar.frame_list_cycle[idx % len(avatar.frame_list_cycle)].copy()
                 x1, y1, x2, y2 = bbox
                 rf    = cv2.resize(raw.astype(np.uint8), (x2 - x1, y2 - y1))
                 mask  = avatar.mask_list_cycle[idx % len(avatar.mask_list_cycle)]

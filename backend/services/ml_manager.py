@@ -12,8 +12,8 @@ from transformers import WhisperModel
 
 args = Namespace(
     version="v15", extra_margin=10, parsing_mode="jaw",
-    left_cheek_width=40, right_cheek_width=40, batch_size=8, fps=25,
-    audio_padding_length_left=2, audio_padding_length_right=2,
+    left_cheek_width=40, right_cheek_width=40, batch_size=16, fps=25,
+    audio_padding_length_left=1, audio_padding_length_right=1,
     skip_save_images=False, result_dir="./results",
 )
 rt.args = args
@@ -48,6 +48,14 @@ def load_models():
         unet.model = unet.model.half().to(device)
         weight_dtype = unet.model.dtype
 
+        try:
+            torch.backends.cuda.enable_flash_sdp(True)
+            torch.backends.cuda.enable_mem_efficient_sdp(True)
+            print("[서버] SDPA (Flash Attention) 활성화")
+        except Exception as se:
+            print(f"[서버] SDPA 스킵: {se}")
+
+
         audio_processor = AudioProcessor(feature_extractor_path="./models/whisper")
         whisper = WhisperModel.from_pretrained("./models/whisper")
         whisper = whisper.to(device=device, dtype=weight_dtype).eval()
@@ -62,6 +70,11 @@ def load_models():
         loading_status = "아바타 준비 중..."
         avatar_short = Avatar(avatar_id="bartender",      video_path="data/video/bartender.mp4",      bbox_shift=0, batch_size=args.batch_size, preparation=True)
         avatar_long  = Avatar(avatar_id="bartender_long", video_path="data/video/Bartender_long.mp4", bbox_shift=0, batch_size=args.batch_size, preparation=True)
+
+        # latent를 GPU에 사전 적재 (추론 시 CPU→GPU 전송 제거)
+        avatar_short.input_latent_list_cycle = [t.to(device) for t in avatar_short.input_latent_list_cycle]
+        avatar_long.input_latent_list_cycle  = [t.to(device) for t in avatar_long.input_latent_list_cycle]
+        print("[서버] latent GPU 적재 완료")
 
         _try_load_custom_avatar_from_cache()
         models_ready   = True
@@ -89,6 +102,7 @@ def _try_load_custom_avatar_from_cache():
             batch_size=args.batch_size,
             preparation=False,
         )
+        custom_avatar.input_latent_list_cycle = [t.to(device) for t in custom_avatar.input_latent_list_cycle]
     except Exception as e:
         print(f"[캐시] 커스텀 아바타 로드 실패: {e}")
 
