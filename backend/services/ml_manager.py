@@ -1,6 +1,7 @@
 import os
 import json
 import torch
+import traceback
 from argparse import Namespace
 
 import scripts.realtime_inference as rt
@@ -84,6 +85,7 @@ def load_models():
         loading_error  = str(e)
         loading_status = f"로딩 실패: {e}"
         print(f"[서버] 로딩 실패: {e}")
+        traceback.print_exc()
     finally:
         loading_in_progress = False
 

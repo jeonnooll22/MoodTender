@@ -13,3 +13,9 @@ class UserResponse(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+class LLMRequest(BaseModel):
+    text: str
+
+class LLMResponse(BaseModel):
+    reply: str

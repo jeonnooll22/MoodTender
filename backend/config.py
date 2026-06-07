@@ -29,6 +29,8 @@ os.environ["PATH"] = FFMPEG_PATH + ";" + os.environ.get("PATH", "")
 
 # ─── API & 인증 설정 ───────────────────────────────────────────
 ANTHROPIC_API_KEY          = os.environ.get("ANTHROPIC_API_KEY", "")
+OPENAI_API_KEY             = os.environ.get("OPENAI_API_KEY", "")
+OPENAI_MODEL               = os.environ.get("OPENAI_MODEL", "gpt-4.1-mini")
 SECRET_KEY                 = os.environ.get("SECRET_KEY", "change-me-in-production")
 ALGORITHM                  = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60

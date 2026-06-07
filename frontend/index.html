@@ -7,7 +7,6 @@
   <link rel="stylesheet" href="/static/css/style.css" />
 </head>
 <body>
-
   <header>
     <div class="header-left">
       <h1>MoodTender</h1>
@@ -17,37 +16,35 @@
       <span id="username-badge" class="username-badge"></span>
       <div class="model-bar">
         <span id="model-status-text">모델 미로드</span>
-        <button id="load-model-btn" onclick="loadModel()">모델 로드</button>
+        <button id="load-model-btn" type="button" onclick="loadModel()">모델 로드</button>
       </div>
-      <button id="logout-btn" onclick="logout()">로그아웃</button>
+      <button id="logout-btn" type="button" onclick="logout()">로그아웃</button>
     </div>
   </header>
 
   <main>
     <aside class="sidebar">
-
-      <!-- 아바타 설정 -->
       <div class="panel">
         <div class="panel-header">아바타 설정</div>
         <p id="avatar-status" class="status-text">기본 바텐더 사용 중</p>
 
         <details>
-          <summary>커스텀 아바타 (사진 업로드)</summary>
+          <summary>커스텀 아바타</summary>
           <div class="avatar-form">
             <input type="file" id="avatar-file" accept=".jpg,.jpeg,.png,.webp" />
 
-            <label class="field-label">움직임 스타일</label>
+            <label class="field-label" for="driving-style">움직임 스타일</label>
             <select id="driving-style">
-              <option value="기본">기본 (자연스러운)</option>
-              <option value="활발">활발한 움직임</option>
-              <option value="차분">차분한 움직임</option>
+              <option value="기본">기본</option>
+              <option value="활발">활발</option>
+              <option value="차분">차분</option>
             </select>
 
-            <label class="field-label">움직임 강도 — <span id="motion-val">0.5</span></label>
+            <label class="field-label" for="motion">움직임 강도 <span id="motion-val">0.5</span></label>
             <input type="range" id="motion" min="0.2" max="1.0" step="0.1" value="0.5"
               oninput="document.getElementById('motion-val').textContent = this.value" />
 
-            <label class="field-label">움직임 범위</label>
+            <label class="field-label" for="region">움직임 범위</label>
             <select id="region">
               <option value="all">전체</option>
               <option value="exp">표정</option>
@@ -55,11 +52,11 @@
               <option value="pose">고개</option>
             </select>
 
-            <label class="field-label">입 위치 보정 — <span id="bbox-val">0</span></label>
+            <label class="field-label" for="bbox-shift">입 위치 보정 <span id="bbox-val">0</span></label>
             <input type="range" id="bbox-shift" min="-10" max="10" step="1" value="0"
               oninput="document.getElementById('bbox-val').textContent = this.value" />
 
-            <button id="init-avatar-btn" class="btn-secondary" onclick="initAvatar()" disabled>
+            <button id="init-avatar-btn" class="btn-secondary" type="button" onclick="initAvatar()" disabled>
               아바타 생성
             </button>
 
@@ -68,27 +65,50 @@
         </details>
       </div>
 
-      <!-- 텍스트 입력 -->
       <div class="panel">
-        <div class="panel-header">바텐더에게 말하기</div>
-        <textarea id="text-input" placeholder="말할 내용을 입력하세요..." rows="5"></textarea>
-
-        <label class="field-label">목소리</label>
+        <div class="panel-header">목소리</div>
+        <label class="field-label" for="voice-select">응답 음성</label>
         <select id="voice-select"></select>
+      </div>
+    </aside>
 
-        <button id="generate-btn" class="btn-primary" onclick="generate()" disabled>
-          생성
-        </button>
+    <section class="chat-stage">
+      <div class="ambient ambient-one"></div>
+      <div class="ambient ambient-two"></div>
+
+      <div class="stage-top">
+        <div class="stage-title">
+          <span class="stage-kicker">MoodTender Live Bar</span>
+          <strong>오늘의 기분을 천천히 들려주세요.</strong>
+        </div>
         <p id="gen-status" class="status-text"></p>
       </div>
 
-    </aside>
+      <div class="chat-layout">
+        <div id="chat-log" class="chat-log" aria-live="polite">
+          <div class="message-row assistant">
+            <div class="message-time">방금 전</div>
+            <div class="message-bubble">어서 오세요. 오늘 마음은 어떤 잔에 담아드릴까요?</div>
+          </div>
+        </div>
 
-    <section class="output">
-      <div class="video-wrap">
-        <video id="video-output" controls autoplay></video>
-        <div id="video-placeholder">영상이 여기에 표시됩니다</div>
+        <div class="avatar-output" aria-label="아바타 영상 출력">
+          <video id="video-output" controls autoplay></video>
+          <div id="video-placeholder">
+            <span>아바타 영상이 여기에 표시됩니다</span>
+          </div>
+        </div>
       </div>
+
+      <form class="chat-composer" onsubmit="event.preventDefault(); generateChat();">
+        <button class="composer-icon-btn" type="button" title="음성 입력 준비 중" aria-label="음성 입력 준비 중">
+          <span class="icon-mic"></span>
+        </button>
+        <input id="text-input" type="text" autocomplete="off" placeholder="메시지를 입력해 주세요." />
+        <button id="generate-btn" class="send-btn" type="submit" disabled aria-label="메시지 전송">
+          <span class="send-arrow"></span>
+        </button>
+      </form>
     </section>
   </main>
 

@@ -11,6 +11,8 @@
 })();
 
 // Redis 블랙리스트 연동 로그아웃
+let isModelReady = false;
+
 async function logout() {
   const token = localStorage.getItem('access_token');
   if (token) {
@@ -62,6 +64,7 @@ function applyModelState({ ready, status, error, loading }) {
   const genBtn   = document.getElementById('generate-btn');
   const initBtn  = document.getElementById('init-avatar-btn');
 
+  isModelReady = Boolean(ready);
   statusEl.textContent = status;
 
   if (ready) {
@@ -72,10 +75,12 @@ function applyModelState({ ready, status, error, loading }) {
   } else if (error) {
     statusEl.className  = 'error';
     loadBtn.disabled    = false;
+    genBtn.disabled     = true;
     loadBtn.textContent = '재시도';
   } else if (loading) {
     statusEl.className  = '';
     loadBtn.disabled    = true;
+    genBtn.disabled     = true;
     loadBtn.textContent = '로딩 중...';
   }
 }
@@ -102,7 +107,7 @@ async function loadModel() {
 
 // ── 영상 생성 (스트리밍 MSE) ─────────────────────────────────
 async function generate() {
-  const text = document.getElementById('text-input').value.trim();
+  let text = document.getElementById('text-input').value.trim();
   if (!text) return;
 
   const genBtn      = document.getElementById('generate-btn');
@@ -112,6 +117,15 @@ async function generate() {
 
   genBtn.disabled      = true;
   statusEl.textContent = '생성 중...';
+
+  try {
+    statusEl.textContent = 'AI 답변 생성 중...';
+    text = await generateLLMReply(text);
+  } catch (e) {
+    statusEl.textContent = `OpenAI 오류: ${e.message}`;
+    genBtn.disabled = !isModelReady;
+    return;
+  }
 
   const form = new FormData();
   form.append('text',  text);
@@ -136,6 +150,102 @@ async function generate() {
   }
 
   genBtn.disabled = false;
+}
+
+async function generateLLMReply(text) {
+  const response = await fetch('/api/llm/respond', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ text })
+  });
+
+  let data = {};
+  try {
+    data = await response.json();
+  } catch (_) {}
+
+  if (!response.ok) {
+    throw new Error(data.detail || '답변 생성에 실패했습니다.');
+  }
+
+  return data.reply;
+}
+
+async function generateChat() {
+  const input       = document.getElementById('text-input');
+  const genBtn      = document.getElementById('generate-btn');
+  const statusEl    = document.getElementById('gen-status');
+  const videoEl     = document.getElementById('video-output');
+  const placeholder = document.getElementById('video-placeholder');
+  const userText    = input.value.trim();
+
+  if (!userText || genBtn.disabled) return;
+
+  appendChatMessage('user', userText);
+  input.value = '';
+  genBtn.disabled = true;
+
+  try {
+    statusEl.textContent = 'AI 답변 생성 중...';
+    const reply = await generateLLMReply(userText);
+    appendChatMessage('assistant', reply);
+
+    statusEl.textContent = '아바타 영상 생성 중...';
+    const form = new FormData();
+    form.append('text', reply);
+    form.append('voice', document.getElementById('voice-select').value);
+
+    const MIME   = 'video/mp4; codecs="avc1.42E01E, mp4a.40.2"';
+    const useMSE = 'MediaSource' in window && MediaSource.isTypeSupported(MIME);
+
+    if (useMSE) {
+      await _generateStream(form, MIME, videoEl, placeholder, statusEl);
+    } else {
+      await readSSE('/api/generate', form, ({ status, error, video_path }) => {
+        if (status) statusEl.textContent = status;
+        if (error) {
+          statusEl.textContent = `오류: ${error}`;
+          appendChatMessage('system', error);
+        }
+        if (video_path) {
+          videoEl.src               = `/api/video?path=${encodeURIComponent(video_path)}`;
+          videoEl.style.display     = 'block';
+          placeholder.style.display = 'none';
+          videoEl.play();
+        }
+      });
+    }
+  } catch (e) {
+    statusEl.textContent = `오류: ${e.message}`;
+    appendChatMessage('system', e.message);
+  } finally {
+    genBtn.disabled = !isModelReady;
+    input.focus();
+  }
+}
+
+function appendChatMessage(role, text) {
+  const log = document.getElementById('chat-log');
+  if (!log) return;
+
+  const row = document.createElement('div');
+  row.className = `message-row ${role}`;
+
+  const time = document.createElement('div');
+  time.className = 'message-time';
+  time.textContent = '방금 전';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'message-bubble';
+  bubble.textContent = text;
+
+  row.appendChild(time);
+  row.appendChild(bubble);
+  log.appendChild(row);
+  log.scrollTop = log.scrollHeight;
 }
 
 async function _generateStream(form, mime, videoEl, placeholder, statusEl) {
