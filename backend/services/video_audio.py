@@ -1,15 +1,19 @@
 import os
 import subprocess
 import json
-import asyncio
-import edge_tts
-from config import FFMPEG_PATH, LP_PYTHON, LP_DIR
-
-async def _tts_async(text: str, path: str, voice: str):
-    await edge_tts.Communicate(text, voice).save(path)
+import httpx
+from config import FFMPEG_PATH, LP_PYTHON, LP_DIR, OPENAI_API_KEY
 
 def tts(text: str, path: str, voice: str):
-    asyncio.run(_tts_async(text, path, voice))
+    with httpx.Client(timeout=60) as client:
+        response = client.post(
+            "https://api.openai.com/v1/audio/speech",
+            headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+            json={"model": "tts-1", "voice": voice, "input": text, "response_format": "wav"},
+        )
+        response.raise_for_status()
+        with open(path, "wb") as f:
+            f.write(response.content)
 
 def get_audio_duration(audio_path: str) -> float:
     r = subprocess.run(

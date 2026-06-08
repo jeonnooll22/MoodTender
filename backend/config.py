@@ -49,8 +49,8 @@ LP_DRIVING_VIDEOS = {
 }
 
 VOICES = {
-    "ko-KR-SunHiNeural":  "한국어 여성 (SunHi)",
-    "ko-KR-InJoonNeural": "한국어 남성 (InJoon)",
-    "en-US-JennyNeural":  "영어 여성 (Jenny)",
-    "en-US-GuyNeural":    "영어 남성 (Guy)",
+    "onyx":   "Onyx (중후한 남성)",
+    "echo":   "Echo (남성)",
+    "fable":  "Fable (표현력 남성)",
+    "alloy":  "Alloy (중성)",
 }

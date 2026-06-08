@@ -24,7 +24,7 @@ async def get_voices():
     return [{"id": k, "name": v} for k, v in VOICES.items()]
 
 @router.post("/generate")
-async def generate(text: str = Form(...), voice: str = Form("ko-KR-SunHiNeural")):
+async def generate(text: str = Form(...), voice: str = Form("onyx")):
     if not ml_manager.models_ready:
         return JSONResponse({"error": "모델이 로드되지 않았습니다."}, status_code=400)
 
@@ -168,7 +168,7 @@ async def serve_video(path: str):
     return FileResponse(path, media_type="video/mp4")
 
 @router.post("/generate_stream")
-async def generate_stream(text: str = Form(...), voice: str = Form("ko-KR-SunHiNeural")):
+async def generate_stream(text: str = Form(...), voice: str = Form("onyx")):
     if not ml_manager.models_ready:
         return JSONResponse({"error": "모델이 로드되지 않았습니다."}, status_code=400)
 
