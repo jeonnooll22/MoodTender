@@ -37,14 +37,36 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // ── 목소리 목록 ──────────────────────────────────────────────
 async function loadVoices() {
-  const voices = await fetch('/api/voices').then(r => r.json());
   const sel = document.getElementById('voice-select');
-  voices.forEach(({ id, name }) => {
-    const opt = document.createElement('option');
-    opt.value = id;
-    opt.textContent = name;
-    sel.appendChild(opt);
-  });
+  try {
+    const token = localStorage.getItem('access_token');
+    const res = await fetch('/api/voices', {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const voices = await res.json();
+    if (!Array.isArray(voices) || voices.length === 0) throw new Error('빈 응답');
+    voices.forEach(({ id, name }) => {
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = name;
+      sel.appendChild(opt);
+    });
+  } catch (e) {
+    console.error('목소리 목록 로드 실패:', e);
+    // 폴백: 기본 목소리 하드코딩
+    [
+      { id: 'ko-KR-SunHiNeural',  name: '한국어 여성 (SunHi)' },
+      { id: 'ko-KR-InJoonNeural', name: '한국어 남성 (InJoon)' },
+      { id: 'en-US-JennyNeural',  name: '영어 여성 (Jenny)' },
+      { id: 'en-US-GuyNeural',    name: '영어 남성 (Guy)' },
+    ].forEach(({ id, name }) => {
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = name;
+      sel.appendChild(opt);
+    });
+  }
 }
 
 // ── 모델 상태 폴링 (2초) ─────────────────────────────────────
@@ -176,22 +198,29 @@ async function _generateStream(form, mime, videoEl, placeholder, statusEl) {
   // 버퍼 직접 모니터링
   const INITIAL_WAIT     = 0;
   const PAUSE_THRESHOLD  = 0.3;
-  const RESUME_THRESHOLD = 1.5;
+  const RESUME_THRESHOLD = 3.0;  // 3초 확보 (드레인 2.46초 + 안전마진 0.54초)
   let monitorId  = null;
   let started    = false;
   let playAllowed = false;
 
   function monitorBuffer() {
-    if (!started) return;
+    if (!started || videoEl.ended) return;
     const buf = videoEl.buffered;
     if (buf.length > 0) {
       const ahead = buf.end(buf.length - 1) - videoEl.currentTime;
-      if (!videoEl.paused && ahead < PAUSE_THRESHOLD) {
-        videoEl.pause();
-        statusEl.textContent = '버퍼링 중...';
-      } else if (videoEl.paused && playAllowed && ahead >= RESUME_THRESHOLD) {
+      if (!streamDone) {
+        // 스트리밍 중: 임계값으로 일시정지/재개
+        if (!videoEl.paused && ahead < PAUSE_THRESHOLD) {
+          videoEl.pause();
+          statusEl.textContent = '버퍼링 중...';
+        } else if (videoEl.paused && playAllowed && ahead >= RESUME_THRESHOLD) {
+          videoEl.play().catch(() => {});
+          statusEl.textContent = '재생 중...';
+        }
+      } else if (videoEl.paused && playAllowed && ahead > 0) {
+        // 스트림 완료 후: 남은 프레임이 1개라도 있으면 바로 재생
         videoEl.play().catch(() => {});
-        statusEl.textContent = '재생 중...';
+        statusEl.textContent = '완료!';
       }
     }
     monitorId = setTimeout(monitorBuffer, 200);
@@ -222,6 +251,14 @@ async function _generateStream(form, mime, videoEl, placeholder, statusEl) {
   streamDone = true;
   if (!appending && appendQueue.length === 0 && mediaSource.readyState === 'open') {
     try { mediaSource.endOfStream(); statusEl.textContent = '완료!'; } catch (_) {}
+  }
+  // 스트림 완료 즉시: 끝부분에서 멈춰있으면 바로 재개
+  if (videoEl.paused && playAllowed) {
+    const buf = videoEl.buffered;
+    if (buf.length > 0 && buf.end(buf.length - 1) - videoEl.currentTime > 0) {
+      videoEl.play().catch(() => {});
+      statusEl.textContent = '완료!';
+    }
   }
 }
 

@@ -242,14 +242,6 @@ async def generate_stream(text: str = Form(...), voice: str = Form("ko-KR-SunHiN
             tts(text, audio_path, voice)
             print(f"[Stream] TTS: {time.time()-t0:.1f}초")
 
-            # TTS 완료 직후 GPU 웜업 (CUDA 캐시 재로딩)
-            with _torch.inference_mode():
-                _dummy = _torch.zeros(8, 4, 32, 32,
-                                      dtype=ml_manager.vae.vae.dtype,
-                                      device=ml_manager.device)
-                _ = ml_manager.vae.vae.decode(_dummy).sample
-                _torch.cuda.synchronize()
-
             av    = ml_manager.custom_avatar if ml_manager.custom_avatar is not None else ml_manager.avatar_long
             first = True
             for chunk in _infer_stream(

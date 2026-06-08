@@ -112,37 +112,31 @@ def _try_load_custom_avatar_from_cache():
         print(f"[캐시] 커스텀 아바타 로드 실패: {e}")
 
 def _warmup_gpu():
-    """실제 파이프라인(UNet+VAE) 1배치 실행으로 CUDA 커널 사전 로딩"""
+    """UNet+VAE CUDA 커널 사전 컴파일.
+    batch=16(정상 배치) + 소배치 4/8/12(마지막 배치 후보)를 모두 실행해
+    실제 추론 시 알고리즘 탐색 없이 바로 캐시된 커널을 사용하게 함."""
     print("[서버] GPU 웜업 중...")
     try:
-        import tempfile, os
-        import numpy as np
-        import soundfile as sf
-        from musetalk.utils.utils import datagen
-
-        # 0.5초 무음 WAV 생성
-        tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
-        sf.write(tmp.name, np.zeros(8000, dtype=np.float32), 16000)
-        tmp.close()
-
         with torch.inference_mode():
-            # 실제 오디오 → whisper → UNet → VAE 경로 웜업
-            feats, length = audio_processor.get_audio_feature(tmp.name, weight_dtype=weight_dtype)
-            chunks = audio_processor.get_whisper_chunk(
-                feats, device, weight_dtype, whisper, length,
-                fps=args.fps,
-                audio_padding_length_left=args.audio_padding_length_left,
-                audio_padding_length_right=args.audio_padding_length_right,
-            )
-            for w, l in datagen(chunks, avatar_long.input_latent_list_cycle, args.batch_size):
-                af  = pe(w.to(device))
-                lb  = l.to(dtype=unet.model.dtype)
-                out = unet.model(lb, timesteps, encoder_hidden_states=af).sample
-                _   = vae.vae.decode(out.to(vae.vae.dtype)).sample
-                break  # 첫 배치만
+            # batch=16 정상 경로 (frame interpolation과 동일하게 out[::2] 사용)
+            _w16 = torch.zeros(16, 5, 384, dtype=weight_dtype, device=device)
+            _l16 = torch.zeros(16, 8, 32, 32, dtype=weight_dtype, device=device)
+            _o16 = unet.model(_l16, timesteps, encoder_hidden_states=pe(_w16)).sample
+            vae.vae.decode(_o16[::2].to(vae.vae.dtype))
             torch.cuda.synchronize()
+            print("[서버] 웜업 batch=16 완료")
 
-        os.unlink(tmp.name)
+            # 소배치: 마지막 배치에서 발생하는 CUDA 알고리즘 탐색 제거
+            for b in [4, 8, 12]:
+                _w = torch.zeros(b, 5, 384, dtype=weight_dtype, device=device)
+                _l = torch.zeros(b, 8, 32, 32, dtype=weight_dtype, device=device)
+                _o = unet.model(_l, timesteps, encoder_hidden_states=pe(_w)).sample
+                key = _o[::2]
+                if key.shape[0] >= 1:
+                    vae.vae.decode(key.to(vae.vae.dtype))
+                torch.cuda.synchronize()
+                print(f"[서버] 웜업 batch={b} 완료")
+
         print("[서버] GPU 웜업 완료")
     except Exception as e:
         print(f"[서버] GPU 웜업 스킵: {e}")

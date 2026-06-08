@@ -122,14 +122,23 @@ def inference_stream(
 
     def _gpu_loop():
         """GPU 전용: 배치 추론 → raw 프레임을 blend_q에 적재"""
+        import time as _t
         gen = datagen(whisper_chunks, avatar.input_latent_list_cycle, avatar.batch_size)
+        batch_idx = 0
         try:
             for whisper_batch, latent_batch in gen:
+                b = whisper_batch.shape[0]
+                t0 = _t.perf_counter()
                 with torch.inference_mode():
-                    af    = pe(whisper_batch.to(device))
-                    lb    = latent_batch.to(dtype=unet.model.dtype)
-                    pred  = unet.model(lb, timesteps, encoder_hidden_states=af).sample
+                    af   = pe(whisper_batch.to(device))
+                    lb   = latent_batch.to(dtype=unet.model.dtype)
+                    pred = unet.model(lb, timesteps, encoder_hidden_states=af).sample
+                t1 = _t.perf_counter()
+                with torch.inference_mode():
                     recon = _decode_fast(pred)
+                t2 = _t.perf_counter()
+                print(f"  [배치{batch_idx:02d}] B={b:2d}  UNet={( t1-t0)*1000:5.0f}ms  VAE={(t2-t1)*1000:5.0f}ms  합={(t2-t0)*1000:5.0f}ms", flush=True)
+                batch_idx += 1
                 for raw in recon:
                     blend_q.put(raw)
         except Exception as e:
