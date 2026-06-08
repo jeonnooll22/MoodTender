@@ -1,6 +1,9 @@
 import os
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ─── 경로 설정 ────────────────────────────────────────────────
 BACKEND_DIR  = Path(__file__).resolve().parent

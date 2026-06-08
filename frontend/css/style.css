@@ -423,6 +423,17 @@ button:not(:disabled):hover {
   background: rgba(255, 255, 255, 0.04);
 }
 
+.composer-icon-btn.recording {
+  border-color: #e05252;
+  background: rgba(224, 82, 82, 0.18);
+  animation: pulse-mic 1s ease-in-out infinite;
+}
+
+@keyframes pulse-mic {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(224, 82, 82, 0.4); }
+  50%       { box-shadow: 0 0 0 6px rgba(224, 82, 82, 0); }
+}
+
 #text-input {
   height: 56px;
   padding: 0 22px;

@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import FRONTEND_DIR
 from database import engine, Base
-from routers import auth, generation, llm, model_status
+from routers import auth, generation, llm, model_status, stt
 
 # ─── DB 테이블 초기화 ─────────────────────────────────────────
 Base.metadata.create_all(bind=engine)
@@ -31,6 +31,7 @@ app.include_router(auth.router,         prefix="/api", tags=["Auth"])
 app.include_router(model_status.router, prefix="/api", tags=["Model"])
 app.include_router(generation.router,   prefix="/api", tags=["Generation"])
 app.include_router(llm.router,          prefix="/api", tags=["LLM"])
+app.include_router(stt.router,          prefix="/api", tags=["STT"])
 
 # ─── 프론트엔드 ───────────────────────────────────────────────
 @app.get("/")

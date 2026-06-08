@@ -101,7 +101,7 @@
       </div>
 
       <form class="chat-composer" onsubmit="event.preventDefault(); generateChat();">
-        <button class="composer-icon-btn" type="button" title="음성 입력 준비 중" aria-label="음성 입력 준비 중">
+        <button id="mic-btn" class="composer-icon-btn" type="button" title="음성 입력" aria-label="음성 입력">
           <span class="icon-mic"></span>
         </button>
         <input id="text-input" type="text" autocomplete="off" placeholder="메시지를 입력해 주세요." />

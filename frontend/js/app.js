@@ -363,6 +363,77 @@ async function initAvatar() {
   btn.disabled = false;
 }
 
+// ── 마이크 STT ───────────────────────────────────────────────
+(function setupMic() {
+  const btn    = document.getElementById('mic-btn');
+  const icon   = btn ? btn.querySelector('.icon-mic') : null;
+  if (!btn) return;
+
+  let mediaRecorder = null;
+  let chunks        = [];
+  let recording     = false;
+
+  btn.addEventListener('click', async () => {
+    if (!recording) {
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch {
+        alert('마이크 접근 권한이 필요합니다.');
+        return;
+      }
+
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : 'audio/webm';
+
+      chunks        = [];
+      mediaRecorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        btn.disabled      = true;
+        btn.title         = '처리 중...';
+        if (icon) icon.textContent = '⏳';
+
+        const blob     = new Blob(chunks, { type: mimeType });
+        const formData = new FormData();
+        formData.append('audio', blob, 'audio.webm');
+
+        try {
+          const res  = await fetch('/api/stt', {
+            method:  'POST',
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
+            body:    formData,
+          });
+          const data = await res.json();
+          if (res.ok && data.text) {
+            document.getElementById('text-input').value = data.text;
+            generateChat();
+          } else {
+            alert(data.detail || 'STT 오류가 발생했습니다.');
+          }
+        } catch {
+          alert('서버와 통신 중 오류가 발생했습니다.');
+        } finally {
+          btn.disabled      = false;
+          btn.title         = '음성 입력';
+          if (icon) icon.textContent = '';
+          btn.classList.remove('recording');
+        }
+      };
+
+      mediaRecorder.start();
+      recording = true;
+      btn.classList.add('recording');
+      btn.title = '클릭하여 녹음 중지';
+    } else {
+      mediaRecorder.stop();
+      recording = false;
+    }
+  });
+})();
+
 // ── SSE 유틸 ─────────────────────────────────────────────────
 async function readSSE(url, formData, onMessage) {
   const res    = await fetch(url, {
