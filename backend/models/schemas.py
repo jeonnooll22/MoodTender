@@ -15,7 +15,12 @@ class Token(BaseModel):
     token_type: str
 
 class LLMRequest(BaseModel):
+    user_id: int
     text: str
 
 class LLMResponse(BaseModel):
     reply: str
+    
+class ChatRequest(BaseModel):
+    user_id: int
+    text: str
