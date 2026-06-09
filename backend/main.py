@@ -7,7 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 # 1. 경로 수정 (backend 폴더를 참조하도록 변경)
 from config import FRONTEND_DIR
 from backend.database import engine, Base
-from backend.routers import auth, generation, llm, model_status, stt
+# 🚀 수정 부분 1: health 라우터 import 추가
+from backend.routers import auth, generation, llm, model_status, stt, health 
 
 # ─── FastAPI 앱 ───────────────────────────────────────────────
 app = FastAPI(title="MoodTender API")
@@ -37,6 +38,10 @@ app.include_router(model_status.router, prefix="/api", tags=["Model"])
 app.include_router(generation.router,   prefix="/api", tags=["Generation"])
 app.include_router(llm.router,          prefix="/api", tags=["LLM"])
 app.include_router(stt.router,          prefix="/api", tags=["STT"])
+
+# 🚀 수정 부분 2: 모바일 건강 데이터 라우터 등록
+# (health.py 내부에 이미 prefix="/api/mobile"이 설정되어 있습니다)
+app.include_router(health.router)
 
 # ─── 프론트엔드 ───────────────────────────────────────────────
 @app.get("/")
